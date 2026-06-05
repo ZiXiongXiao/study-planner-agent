@@ -271,4 +271,4 @@ study-planner-agent/  智能学习规划助手
 
 ## 许可
 
-课程项目代码。基于 paper-agents 架构设计。
+课程项目代码。
