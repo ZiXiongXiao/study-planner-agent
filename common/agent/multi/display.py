@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import re
+
 
 def resource_cards(resources: list[dict]) -> str:
     """资源型内容 → 链接卡片 + 视频清单。"""
@@ -74,6 +76,74 @@ def resource_cards(resources: list[dict]) -> str:
             lines.append(f"  {i}. [{v.get('title', 'video')}]({v.get('url', '')})")
 
     return "\n".join(lines)
+
+
+def parse_resources_from_report(markdown: str) -> list[dict]:
+    """从已保存报告的「推荐资源」章节还原资源卡片数据，供 Web 资源页展示。"""
+
+    if not markdown:
+        return []
+
+    match = re.search(
+        r"^## 🔗 推荐资源[^\n]*\n(.*?)(?=^## |\Z)",
+        markdown,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        return []
+
+    resources: list[dict] = []
+    current: dict | None = None
+
+    for line in match.group(1).splitlines():
+        if line.startswith("- ") and "**" in line:
+            if current and current.get("title"):
+                resources.append(current)
+            current = {}
+            head = line[2:]
+            title_match = re.search(r"\*\*(.+?)\*\*", head)
+            if title_match:
+                current["title"] = title_match.group(1).strip()
+            score_match = re.search(r"适合度\s*([\d.]+)", head)
+            if score_match:
+                current["fit_score"] = score_match.group(1)
+            continue
+
+        if not line.startswith("  - ") or current is None:
+            continue
+
+        detail = line[4:].strip()
+        link_match = re.match(r"链接：<(.*?)>", detail)
+        if link_match:
+            url = link_match.group(1).strip()
+            if url and not url.startswith(("http://", "https://")):
+                url = f"https://{url.lstrip('/')}"
+            current["url"] = url
+            continue
+
+        if detail.startswith("🌐"):
+            lang_match = re.search(r"🌐\s*([^·]+)", detail)
+            cost_match = re.search(r"💰\s*([^·]+)", detail)
+            diff_match = re.search(r"🎯\s*适合\s*(.+)", detail)
+            if lang_match:
+                current["language"] = lang_match.group(1).strip()
+            if cost_match:
+                current["cost"] = cost_match.group(1).strip()
+            if diff_match:
+                current["difficulty"] = diff_match.group(1).strip()
+            continue
+
+        if detail.startswith("推荐理由："):
+            current["why"] = detail.removeprefix("推荐理由：").strip()
+            continue
+
+        if detail.startswith("📌 用法："):
+            current["use_hint"] = detail.removeprefix("📌 用法：").strip()
+
+    if current and current.get("title"):
+        resources.append(current)
+
+    return resources
 
 
 def roadmap_mermaid(milestones: list[dict]) -> str:

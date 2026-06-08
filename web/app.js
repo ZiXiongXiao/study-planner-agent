@@ -268,6 +268,7 @@ async function openPlan(id) {
     renderFolderWorkspace(plan);
     const data = await api(`/api/plan?id=${encodeURIComponent(id)}`);
     renderMarkdown(data.content || "");
+    renderResources(data.resources || []);
     markActivePlan(id);
     switchTab("preview");
   } catch (err) {

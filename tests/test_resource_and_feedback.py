@@ -112,6 +112,33 @@ class FeedbackResearchTests(unittest.TestCase):
         self.assertEqual(calls["eval"], 0)
 
 
+class ParseResourcesFromReportTests(unittest.TestCase):
+    def test_parse_resources_from_saved_report_section(self):
+        markdown = "\n".join([
+            "## 🔗 推荐资源（资源型：链接卡片 + 视频）",
+            "",
+            "- 📄 **Reflexion Paper**  ·  适合度 9.5",
+            "  - 链接：<https://arxiv.org/abs/2303.11366>",
+            "  - 🌐 英文 · 💰 免费 · 🎯 适合 intermediate",
+            "  - 推荐理由：顶会经典",
+            "  - 📌 用法：先读方法章节",
+            "- 📖 **Zotero**  ·  适合度 9",
+            "  - 链接：<https://www.zotero.org>",
+            "  - 🌐 中文 · 💰 免费 · 🎯 适合 beginner",
+            "  - 推荐理由：文献管理",
+            "",
+            "## 🤝 多智能体协作日志",
+        ])
+        resources = display.parse_resources_from_report(markdown)
+        self.assertEqual(len(resources), 2)
+        self.assertEqual(resources[0]["title"], "Reflexion Paper")
+        self.assertEqual(resources[0]["url"], "https://arxiv.org/abs/2303.11366")
+        self.assertEqual(resources[0]["fit_score"], "9.5")
+        self.assertEqual(resources[0]["language"], "英文")
+        self.assertEqual(resources[0]["why"], "顶会经典")
+        self.assertEqual(resources[1]["title"], "Zotero")
+
+
 class RefreshStructuralTests(unittest.TestCase):
     def test_refresh_regenerates_only_structural(self):
         with tempfile.TemporaryDirectory() as tmp:

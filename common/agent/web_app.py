@@ -43,6 +43,7 @@ from common.agent.multi.agents import (
     ResourceSearchAgent,
     RouterAgent,
 )
+from common.agent.multi.display import parse_resources_from_report
 from common.agent.multi.pipeline import _save
 from common.agent.multi.package import export_learning_package
 from common.agent.multi.state import SessionState
@@ -540,7 +541,11 @@ class StudyPlannerWebHandler(BaseHTTPRequestHandler):
                         files[name] = path.read_text(encoding="utf-8")
             self._json({"files": files})
             return
-        self._json({"content": report.read_text(encoding="utf-8")})
+        content = report.read_text(encoding="utf-8")
+        self._json({
+            "content": content,
+            "resources": parse_resources_from_report(content),
+        })
 
     def _handle_asset_read(self, query: str) -> None:
         params = parse_qs(query)
