@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Study Planner Agent - Kimi 入口
+Study Planner Agent - MiniMax 入口
 智能学习规划助手 · 多智能体协作（单一模式）
 
 按 5 层架构、9 个 Agent 的核心调用链完成学习规划。
 """
-# 我今年-30-岁-想在-6-周内系统入门股票投资-目标不是短线暴富-而是能看懂基本的投资逻辑-建立适合普通上班族的长期投资框架
+
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from providers.kimi_impl import KimiProvider
+from providers.minimax_impl import MiniMaxProvider
 from common.agent.multi import run_multi_agent
 
 
 def main():
-    provider = KimiProvider()
+    provider = MiniMaxProvider()
     run_multi_agent(provider)
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-DeepSeek Provider Implementation for Study Planner Agent
-基于 DeepSeek API 的模型适配器
+MiniMax Provider Implementation for Study Planner Agent
+基于 MiniMax 开放平台的模型适配器（chatcompletion_v2，OpenAI 兼容格式）
 """
 
 from __future__ import annotations
@@ -11,14 +11,14 @@ import os
 import time
 
 
-class DeepSeekProvider:
-    reply_label = "DeepSeek"
-    BASE_URL = "https://api.deepseek.com/v1"
+class MiniMaxProvider:
+    reply_label = "MiniMax"
+    # 国内站；国际站为 https://api.minimaxi.com/v1
+    BASE_URL = "https://api.minimax.chat/v1"
 
     MODELS = {
-        "deepseek-v4-flash": "deepseek-chat",
-        "deepseek-v4": "deepseek-chat",
-        "deepseek-coder": "deepseek-coder",
+        "m3": "MiniMax-M3",
+        "m2.7": "MiniMax-M2.7",
     }
 
     def __init__(self) -> None:
@@ -29,17 +29,17 @@ class DeepSeekProvider:
         print(f"Using {self.reply_label} provider")
 
     def get_api_key(self) -> None:
-        env_key = os.environ.get("DEEPSEEK_API_KEY")
+        env_key = os.environ.get("MINIMAX_API_KEY")
         if env_key:
             self.api_key = env_key
             print("Loaded API key from environment")
             return
 
         print("\n" + "=" * 50)
-        print("DeepSeek API Key Setup")
+        print("MiniMax API Key Setup")
         print("=" * 50)
-        print("\nEnter your DeepSeek API Key (sk-...):")
-        print("(Get your key from https://platform.deepseek.com)")
+        print("\nEnter your MiniMax API Key:")
+        print("(Get your key from https://platform.minimaxi.com)")
         key = input().strip()
 
         if not key:
@@ -54,15 +54,15 @@ class DeepSeekProvider:
         for display_name, _ in self.MODELS.items():
             print(f"  • {display_name}")
 
-        print("\nEnter model name [deepseek-v4-flash]:", end=" ")
+        print("\nEnter model name [m3]:", end=" ")
         choice = input().strip()
 
         if not choice:
-            choice = "deepseek-v4-flash"
+            choice = "m3"
 
         if choice not in self.MODELS:
-            print(f"⚠ Unknown model '{choice}', using deepseek-v4-flash")
-            choice = "deepseek-v4-flash"
+            print(f"⚠ Unknown model '{choice}', using m3")
+            choice = "m3"
 
         print(f"✓ Selected: {choice}")
         return choice
@@ -71,9 +71,9 @@ class DeepSeekProvider:
         if not self.api_key:
             raise RuntimeError("API key not set")
 
-        model_name = self.MODELS.get(model_id, "deepseek-chat")
+        model_name = self.MODELS.get(model_id, "MiniMax-M3")
 
-        url = f"{self.BASE_URL}/chat/completions"
+        url = f"{self.BASE_URL}/text/chatcompletion_v2"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
@@ -89,7 +89,7 @@ class DeepSeekProvider:
             payload["tool_choice"] = "auto"
 
         print("\n" + "-" * 50)
-        print("🤖 DeepSeek is thinking...")
+        print("🤖 MiniMax is thinking...")
         print("-" * 50)
 
         max_retries = 3
@@ -103,6 +103,15 @@ class DeepSeekProvider:
                     response = client.post(url, headers=headers, json=payload)
                     response.raise_for_status()
                     data = response.json()
+
+                # MiniMax 的业务错误放在 base_resp 里（HTTP 仍是 200）
+                base = data.get("base_resp", {})
+                if base and base.get("status_code", 0) != 0:
+                    raise RuntimeError(
+                        f"MiniMax error {base.get('status_code')}: {base.get('status_msg', '')}"
+                    )
+                if "choices" not in data:
+                    raise RuntimeError(f"Unexpected response: {data}")
                 message = data["choices"][0]["message"]
                 # 传了 tools 则返回完整 message（可能含 tool_calls）；否则只取文本。
                 return message if tools else message.get("content", "")
@@ -110,7 +119,7 @@ class DeepSeekProvider:
             except httpx.HTTPStatusError as e:
                 code = e.response.status_code
                 if code == 401:
-                    raise RuntimeError("Invalid API key. Please check your DeepSeek API key.")
+                    raise RuntimeError("Invalid API key. Please check your MiniMax API key.")
                 if code == 429:
                     if attempt < max_retries:
                         wait = 5 * (attempt + 1)
@@ -119,19 +128,22 @@ class DeepSeekProvider:
                         continue
                     raise RuntimeError(
                         "多次重试仍被限流(429)。通常是账户额度用尽或余额不足，"
-                        "请到 platform.deepseek.com 查看额度。"
+                        "请到 platform.minimaxi.com 查看额度。"
                     )
                 raise RuntimeError(f"HTTP error: {code}")
             except httpx.ConnectError as e:
                 raise RuntimeError(
-                    "无法连接 api.deepseek.com。请检查网络是否正常、是否能直接访问该域名。"
+                    "无法连接 api.minimax.chat。请检查网络是否正常、是否能直接访问该域名。"
                     f"（已默认直连不走代理）原始错误：{e}"
                 )
             except httpx.TimeoutException as e:
                 if attempt < max_retries:
                     print(f"   ⏳ 请求超时，重试（第 {attempt + 1}/{max_retries} 次）...")
                     continue
-                raise RuntimeError(f"请求多次超时，可稍后重试。原始错误：{e}")
+                raise RuntimeError(
+                    "请求多次超时。M3 生成长内容较慢，可重试，或在选择模型时改用更快的型号。"
+                    f"原始错误：{e}"
+                )
             except Exception as e:
                 raise RuntimeError(f"Request failed: {str(e)}")
 

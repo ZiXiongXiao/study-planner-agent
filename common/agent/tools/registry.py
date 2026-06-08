@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 
@@ -57,75 +57,3 @@ class ToolRegistry:
                 summary=message,
                 error=message,
             )
-
-
-def build_default_registry() -> ToolRegistry:
-    from common.agent.tools.resources import search_resources
-    from common.agent.tools.scheduler import schedule_tasks
-    from common.agent.tools.progress import (
-        breakdown_goals,
-        set_milestones,
-        understand_goals,
-        assess_level,
-        track_progress,
-    )
-
-    registry = ToolRegistry()
-    
-    registry.register(
-        ToolSpec(
-            name="understand_goals",
-            description="Understand user's learning goals and preferences.",
-            handler=understand_goals,
-        )
-    )
-    
-    registry.register(
-        ToolSpec(
-            name="assess_level",
-            description="Assess user's current skill level.",
-            handler=assess_level,
-        )
-    )
-    
-    registry.register(
-        ToolSpec(
-            name="search_resources",
-            description="Search for high-quality learning resources.",
-            handler=search_resources,
-        )
-    )
-    
-    registry.register(
-        ToolSpec(
-            name="breakdown_goals",
-            description="Break down large goals into manageable tasks.",
-            handler=breakdown_goals,
-        )
-    )
-    
-    registry.register(
-        ToolSpec(
-            name="schedule_tasks",
-            description="Schedule tasks based on available time.",
-            handler=schedule_tasks,
-        )
-    )
-    
-    registry.register(
-        ToolSpec(
-            name="set_milestones",
-            description="Set learning milestones and checkpoints.",
-            handler=set_milestones,
-        )
-    )
-    
-    registry.register(
-        ToolSpec(
-            name="track_progress",
-            description="Track learning progress.",
-            handler=track_progress,
-        )
-    )
-    
-    return registry

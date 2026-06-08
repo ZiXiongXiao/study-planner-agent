@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Study Planner Agent</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">SP</div>
+          <div>
+            <h1>Study Planner</h1>
+            <p>学习规划智能体</p>
+          </div>
+        </div>
+
+        <button id="newPlanBtn" class="primary full">新建学习规划</button>
+
+        <div class="side-head">
+          <div class="side-title">已保存计划</div>
+          <span id="planCount">0</span>
+        </div>
+        <div id="planList" class="plan-list"></div>
+
+        <div class="sidebar-spacer"></div>
+        <button id="settingsButton" class="settings-entry" type="button">
+          <span class="settings-glyph">⚙</span>
+          <span>
+            <strong>设置</strong>
+            <small>模型、搜索、记忆</small>
+          </span>
+        </button>
+      </aside>
+
+      <main class="main">
+        <section class="chat-pane">
+          <div class="toolbar">
+            <div>
+              <h2>智能规划对话</h2>
+              <p id="runStatus">配置模型后，输入学习目标开始。</p>
+            </div>
+            <div class="toolbar-actions">
+              <div class="step-rail" id="stepRail">
+                <span>目标</span><span>澄清</span><span>草稿</span><span>保存</span>
+              </div>
+              <div id="themeQuickSwitch" class="theme-quick" role="group" aria-label="外观快捷切换">
+                <button type="button" data-theme-choice="light">日间</button>
+                <button type="button" data-theme-choice="dark">夜间</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="chatLog" class="chat-log">
+            <div class="bubble assistant">
+              <strong>开始方式</strong>
+              <p>先在左下角设置主模型、MiniMax 配图和 Tavily 搜索，再输入一次学习目标。确认满意后才会写入最终报告和学习执行包。</p>
+            </div>
+          </div>
+
+          <section id="agentStatusPanel" class="agent-status hidden">
+            <div class="panel-head">
+              <div>
+                <span class="eyebrow">Agent Run</span>
+                <h3>智能体运行状态</h3>
+              </div>
+              <span id="agentStatusLabel" class="status-label">等待开始</span>
+            </div>
+            <div id="agentTimeline" class="agent-timeline"></div>
+          </section>
+
+          <section id="clarifyPanel" class="clarify-deck hidden">
+            <div id="clarifyDeck" class="clarify-card">
+              <div class="clarify-head">
+                <h3 id="clarifyQuestion">需求澄清</h3>
+                <div class="clarify-controls">
+                  <button id="clarifyPrevBtn" type="button" aria-label="上一题">‹</button>
+                  <span id="clarifyCounter">1 of 1</span>
+                  <button id="clarifyNextBtn" type="button" aria-label="下一题">›</button>
+                  <button id="clarifyCloseBtn" type="button" aria-label="关闭澄清">×</button>
+                </div>
+              </div>
+              <div id="clarifyOptions" class="clarify-options"></div>
+              <div class="clarify-foot">
+                <span>也可以在下方输入框直接回答当前问题。</span>
+                <button id="clarifySkipBtn" type="button">Skip</button>
+              </div>
+            </div>
+          </section>
+
+          <form id="goalForm" class="composer">
+            <textarea id="goalInput" rows="4" placeholder="例如：我今年 30 岁，想在 6 周内系统入门股票投资，目标不是短线暴富，而是建立长期投资框架。"></textarea>
+            <button id="composerSubmitBtn" class="primary" type="submit">生成澄清问题</button>
+          </form>
+
+          <section id="draftActionBar" class="draft-actions hidden">
+            <div>
+              <strong>计划草稿已生成</strong>
+              <span>继续在输入框反馈这个计划，满意后保存最终文件。</span>
+            </div>
+            <button id="saveBtn" class="primary" type="button">保存最终文件</button>
+          </section>
+        </section>
+
+        <div
+          id="splitResizer"
+          class="split-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整聊天区和文件区宽度"
+          tabindex="0"
+        >
+          <span></span>
+        </div>
+
+        <section class="workspace">
+          <div class="folder-dock">
+            <div class="folder-head">
+              <div>
+                <span class="eyebrow">本地学习文件夹</span>
+                <h2 id="folderTitle">等待生成最终文件</h2>
+              </div>
+              <button id="openFolderBtn" class="folder-open" type="button" disabled>打开文件夹</button>
+            </div>
+
+            <div class="folder-card">
+              <div class="folder-icon">MD</div>
+              <div class="folder-main">
+                <p id="folderSubtitle">确认保存后，会生成报告、assets 图片和 package 执行包。</p>
+                <code id="folderPath">尚未保存</code>
+              </div>
+            </div>
+
+            <div class="file-lines">
+              <div>
+                <span>完整报告</span>
+                <strong id="reportPath">等待保存</strong>
+              </div>
+              <div>
+                <span>学习执行包</span>
+                <strong id="packageDir">等待保存</strong>
+              </div>
+            </div>
+            <div id="packageChips" class="file-chips"></div>
+          </div>
+
+          <div class="workspace-tabs">
+            <button class="tab active" data-tab="preview">计划预览</button>
+            <button class="tab" data-tab="resources">资源</button>
+          </div>
+
+          <div id="tab-preview" class="tab-page active">
+            <div id="preview" class="markdown empty">计划会显示在这里。</div>
+          </div>
+
+          <div id="tab-resources" class="tab-page">
+            <div id="resourceList" class="resource-list empty">推荐资源会显示在这里。</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="settingsModal" class="modal hidden" aria-hidden="true">
+      <div id="settingsBackdrop" class="modal-backdrop"></div>
+      <section class="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modal-head">
+          <div>
+            <span class="eyebrow">Settings</span>
+            <h2 id="settingsTitle">运行设置</h2>
+          </div>
+          <button id="closeSettingsBtn" class="icon-button" type="button" aria-label="关闭设置">×</button>
+        </div>
+
+        <form id="settingsForm" class="settings-form">
+          <!-- 外观 -->
+          <section id="appearanceCard" class="config-card appearance-card">
+            <div class="config-card-head">
+              <span class="config-glyph">Aa</span>
+              <div>
+                <strong>外观</strong>
+                <small>选择界面明暗模式</small>
+              </div>
+            </div>
+            <div class="theme-choice-grid" aria-label="外观模式">
+              <button type="button" class="theme-card" data-theme-choice="light">
+                <span class="theme-preview theme-preview-light">
+                  <span></span><span></span><i></i>
+                </span>
+                <strong>浅色模式</strong>
+              </button>
+              <button type="button" class="theme-card" data-theme-choice="dark">
+                <span class="theme-preview theme-preview-dark">
+                  <span></span><span></span><i></i>
+                </span>
+                <strong>深色模式</strong>
+              </button>
+              <button type="button" class="theme-card" data-theme-choice="system">
+                <span class="theme-preview theme-preview-system">
+                  <span></span><span></span><i></i>
+                </span>
+                <strong>跟随系统</strong>
+              </button>
+            </div>
+            <div class="appearance-subhead">
+              <strong>画布风格</strong>
+              <small>给中间工作区加一点背景质感</small>
+            </div>
+            <div id="canvasStyleGroup" class="canvas-style-grid" aria-label="画布风格">
+              <button type="button" class="canvas-card" data-canvas-style="plain">
+                <span class="canvas-preview canvas-preview-plain"></span>
+                <strong>纯净</strong>
+              </button>
+              <button type="button" class="canvas-card" data-canvas-style="grid">
+                <span class="canvas-preview canvas-preview-grid"></span>
+                <strong>网格</strong>
+              </button>
+              <button type="button" class="canvas-card" data-canvas-style="paper">
+                <span class="canvas-preview canvas-preview-paper"></span>
+                <strong>纸张</strong>
+              </button>
+              <button type="button" class="canvas-card" data-canvas-style="texture">
+                <span class="canvas-preview canvas-preview-texture"></span>
+                <strong>纹理</strong>
+              </button>
+            </div>
+          </section>
+
+          <!-- 主模型 -->
+          <section class="config-card">
+            <div class="config-card-head">
+              <span class="config-glyph">🧠</span>
+              <div>
+                <strong>主模型</strong>
+                <small>对话与规划使用的模型</small>
+              </div>
+            </div>
+
+            <label class="field-label" for="providerSelect">服务商</label>
+            <select id="providerSelect">
+              <option value="minimax">MiniMax</option>
+              <option value="kimi">Kimi</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+
+            <label class="field-label">模型</label>
+            <div id="modelList" class="model-list"></div>
+            <select id="modelSelect" class="visually-hidden" aria-hidden="true" tabindex="-1"></select>
+
+            <div class="switch-row">
+              <div>
+                <strong>深度思考</strong>
+                <small>让模型先推理再作答</small>
+              </div>
+              <label class="switch" title="深度思考">
+                <input type="checkbox" id="deepThinking" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <label class="field-label" for="mainKey">主模型 API Key</label>
+            <input id="mainKey" type="password" placeholder="sk-..." autocomplete="off" />
+          </section>
+
+          <!-- 生成图片 -->
+          <section class="config-card">
+            <div class="config-card-head">
+              <span class="config-glyph">🎨</span>
+              <div>
+                <strong>生成图片</strong>
+                <small>M3 · 结构图 / 封面 / 成果图</small>
+              </div>
+            </div>
+            <label class="field-label" for="imageModel">图片生成模型</label>
+            <select id="imageModel">
+              <option value="m3">MiniMax-M3</option>
+              <option value="image-01">MiniMax image-01</option>
+              <option value="custom">自定义模型 ID</option>
+            </select>
+            <input id="imageModelCustom" class="hidden" type="text" placeholder="例如：MiniMax-M3" autocomplete="off" />
+            <label class="field-label" for="imageKey">MiniMax 图生成 Key</label>
+            <input id="imageKey" type="password" placeholder="可留空；MiniMax 主模型可复用" autocomplete="off" />
+            <p class="field-hint">默认使用 M3。留空时若主模型为 MiniMax 会自动复用其 Key；都没有则回退本地 SVG。</p>
+          </section>
+
+          <!-- 联网搜索 -->
+          <section class="config-card">
+            <div class="config-card-head">
+              <span class="config-glyph">🌐</span>
+              <div>
+                <strong>联网搜索</strong>
+                <small>Tavily · 资源检索与正文核验</small>
+              </div>
+            </div>
+            <label class="field-label">搜索工具</label>
+            <div class="tool-pill"><span class="dot"></span>Tavily</div>
+            <label class="field-label" for="tavilyKey">Tavily 搜索 Key</label>
+            <input id="tavilyKey" type="password" placeholder="tvly-...，可留空" autocomplete="off" />
+            <p class="field-hint">未配置则资源搜索回退为纯模型生成。</p>
+          </section>
+
+          <!-- 全局记忆 -->
+          <section class="config-card">
+            <div class="config-card-head">
+              <span class="config-glyph">📌</span>
+              <div>
+                <strong>全局记忆</strong>
+                <small>跨计划生效的长期偏好</small>
+              </div>
+            </div>
+            <textarea id="globalMemory" rows="4" placeholder="例如：我偏好中文免费资源；晚上学习；希望项目实战多一点。"></textarea>
+          </section>
+
+          <button class="primary full" type="submit">保存设置</button>
+        </form>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

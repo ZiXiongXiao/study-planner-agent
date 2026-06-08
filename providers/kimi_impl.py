@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import httpx
 import os
+import time
 
 
 class KimiProvider:
@@ -66,7 +67,7 @@ class KimiProvider:
         print(f"✓ Selected: {choice}")
         return choice
 
-    def chat(self, messages: list[dict], model_id: str) -> str:
+    def chat(self, messages: list[dict], model_id: str, tools: list | None = None) -> "str | dict":
         if not self.api_key:
             raise RuntimeError("API key not set")
 
@@ -82,28 +83,57 @@ class KimiProvider:
             "messages": messages,
             "temperature": 0.7,
         }
+        # 仅在显式传入工具时开启 function-calling；否则保持原有纯文本行为。
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
 
         print("\n" + "-" * 50)
         print("🤖 Kimi is thinking...")
         print("-" * 50)
 
-        try:
-            with httpx.Client(timeout=120.0) as client:
-                response = client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                data = response.json()
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                # trust_env=False：忽略系统代理(HTTP_PROXY 等)，国内 API 直连，
+                # 避免残留代理导致 WinError 10061 连接被拒。
+                # read=300s：大模型生成长内容（如计划生成）较慢，避免读取超时
+                timeout = httpx.Timeout(300.0, connect=15.0)
+                with httpx.Client(timeout=timeout, trust_env=False) as client:
+                    response = client.post(url, headers=headers, json=payload)
+                    response.raise_for_status()
+                    data = response.json()
+                message = data["choices"][0]["message"]
+                # 传了 tools 则返回完整 message（可能含 tool_calls）；否则只取文本。
+                return message if tools else message.get("content", "")
 
-            return data["choices"][0]["message"]["content"]
-
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
-                raise RuntimeError("Invalid API key. Please check your Moonshot API key.")
-            elif e.response.status_code == 429:
-                raise RuntimeError("Rate limit exceeded. Please try again later.")
-            else:
-                raise RuntimeError(f"HTTP error: {e.response.status_code}")
-        except Exception as e:
-            raise RuntimeError(f"Request failed: {str(e)}")
+            except httpx.HTTPStatusError as e:
+                code = e.response.status_code
+                if code == 401:
+                    raise RuntimeError("Invalid API key. Please check your Moonshot API key.")
+                if code == 429:
+                    if attempt < max_retries:
+                        wait = 5 * (attempt + 1)
+                        print(f"   ⏳ 触发限流(429)，{wait}s 后重试（第 {attempt + 1}/{max_retries} 次）...")
+                        time.sleep(wait)
+                        continue
+                    raise RuntimeError(
+                        "多次重试仍被限流(429)。通常是账户免费额度用尽或余额不足，"
+                        "请到 platform.moonshot.cn 查看额度，或改用 DeepSeek。"
+                    )
+                raise RuntimeError(f"HTTP error: {code}")
+            except httpx.ConnectError as e:
+                raise RuntimeError(
+                    "无法连接 api.moonshot.cn。请检查网络是否正常、是否能直接访问该域名。"
+                    f"（已默认直连不走代理）原始错误：{e}"
+                )
+            except httpx.TimeoutException as e:
+                if attempt < max_retries:
+                    print(f"   ⏳ 请求超时，重试（第 {attempt + 1}/{max_retries} 次）...")
+                    continue
+                raise RuntimeError(f"请求多次超时，可稍后重试。原始错误：{e}")
+            except Exception as e:
+                raise RuntimeError(f"Request failed: {str(e)}")
 
     def reset_conversation(self) -> None:
         self.conversation_history = []
