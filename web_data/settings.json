@@ -1,0 +1,9 @@
+{
+  "provider": "minimax",
+  "model_id": "m3",
+  "main_api_key": "",
+  "minimax_image_key": "",
+  "tavily_key": "",
+  "global_memory": "",
+  "deep_thinking": "on"
+}

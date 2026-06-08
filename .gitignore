@@ -3,8 +3,7 @@ __pycache__/
 .venv/
 .env
 
-# 本地运行数据：保留 web_data/ 空目录结构，但忽略含 API Key 的 settings.json
-web_data/settings.json
+# 注意：web_data/settings.json 已纳入版本管理（当前为空）；填入 API Key 后请勿提交真实密钥。
 
 # 工具/缓存产物
 .playwright-cli/
